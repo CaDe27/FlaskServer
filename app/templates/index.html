@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Graph Visualizer</title>
+
+    <!-- bootstrap -->
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+
+    <!-- cytoscape -->
+    <!-- <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script> -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
+
+    <!-- my own style -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <!-- my own javascript files -->
+    <script src="{{ url_for('static', filename='initConfig.js') }}"></script>
+    <script src="{{ url_for('static', filename='cytoscapeConfig.js') }}"></script> 
+    <script src="{{ url_for('static', filename='updateFuncs.js') }}"></script> 
+</head>
+<body>
+
+<div class="container mt-3">
+    <div class="row">
+        <!-- Left Menu -->
+        <div class="col-lg-3 col-4 custom-style">
+            <div class="row">
+                <!-- start date picker -->
+                <div class="input-group">
+                    <label for="startDate">Start date</label>
+                    <input id="startDate" class="form-control" type="date" min="{{ min_date }}" max="{{ max_date }}" value="{{ start_datetime.strftime('%Y-%m-%d') }}"/>
+                </div>
+                <div class="input-group">
+                    <select class="custom-select" id="startHourSelect" name="hour">
+                        <option selected>{{ start_datetime.strftime('%H') }}</option>
+                    </select>
+                    <select class="custom-select" id="startMinuteSelect" name="minute">
+                        <option selected>{{ start_datetime.strftime('%M') }}</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- end date picker -->
+            <div class="row">
+                <div class="input-group">
+                    <label for="endDate">End date</label>
+                    <input id="endDate" class="form-control" type="date" min="{{ min_date }}" max="{{ max_date }}" value="{{ end_datetime.strftime('%Y-%m-%d') }}"/>
+                </div>
+                <div class="input-group">
+                    <select class="custom-select" id="endHourSelect" name="hour">
+                        <option selected>{{ end_datetime.strftime('%H') }}</option>
+                    </select>
+                    <select class="custom-select" id="endMinuteSelect" name="minute">
+                        <option selected>{{ end_datetime.strftime('%M') }}</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="input-group">
+                <label for="serviceSelector">Service:</label>
+                <select class="custom-select" id="serviceSelector">
+                    <option selected>{{ selected_service }}</option>
+                </select>
+            </div>
+
+            <div class="row">
+                <div class="input-group">
+                    <label for="inDepthLimit">Incoming depth limit:</label>
+                    <input id="inDepthLimit" class="form-control" type="number" min="0" step="1" value="{{ in_depth_limit }}"/>
+                </div>
+            </div> 
+
+            <div class="row">
+                <div class="input-group">
+                    <label for="outDepthLimit">Outcoming depth limit:</label>
+                    <input id="outDepthLimit" class="form-control" type="number" min="0" step="1" value="{{ out_depth_limit }}"/>
+                </div>
+            </div>
+            
+            <div class="row">
+                <label>Included status codes:</label>
+            </div>
+            <div class="row">
+                <div class="input-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="status100" {% if 100 in included_status_codes %} checked {% endif %}>
+                        <label class="form-check-label" for="status100">100</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="status200" {% if 200 in included_status_codes %} checked {% endif %}>
+                        <label class="form-check-label" for="status200">200</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="status300" {% if 300 in included_status_codes %} checked {% endif %}>
+                        <label class="form-check-label" for="status300">300</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox"id="status400" {% if 400 in included_status_codes %} checked {% endif %}>
+                        <label class="form-check-label" for="status400">400</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="" id="status500" {% if 500 in included_status_codes %} checked {% endif %}>
+                        <label class="form-check-label" for="status500">500</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Graph Display Area -->
+        <div class="col-8">
+            <div id="cy" style="width: 100%; height: 400px;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Generate options for the hour dropdowns (00 to 23)
+    generateOptions(document.getElementById('startHourSelect'), 0, 23, true);
+    generateOptions(document.getElementById('endHourSelect'), 0, 23, true);
+
+    // Generate options for the minute dropdown (00 to 59)
+    generateOptions(document.getElementById('startMinuteSelect'), 0, 59, true);
+    generateOptions(document.getElementById('endMinuteSelect'), 0, 59, true);
+
+    const serviceNameList = {{ serviceNames | tojson }};
+    fillServiceSelectorOptions(document.getElementById('serviceSelector'), serviceNameList);
+
+    // Initialize visualization
+    window.onload = async function() {
+        cy = cytoscape({container: document.getElementById('cy')});
+        await changeTimeEventListener();
+        defineNodeStyle();
+        defineEdgeStyleMultipleHttpBlocks();
+    }; 
+</script>
+
+<!-- add listeners -->
+<script>
+    document.getElementById('startDate').addEventListener('change', async function(event) {
+        endDateAfterStartDate();
+        await changeTimeEventListener();  
+    });
+    
+    document.getElementById('endDate').addEventListener('change', async function(event) {
+        startDateBeforeEndDate();
+        await changeTimeEventListener();  
+    });
+
+    document.getElementById('startHourSelect').addEventListener('change', async function(event) {
+        endHourAfterStartHour();
+        await changeTimeEventListener(); 
+    });
+
+    document.getElementById('endHourSelect').addEventListener('change', async function(event) {
+        startHourBeforeEndHour();
+        await changeTimeEventListener();  
+    });
+
+    document.getElementById('startMinuteSelect').addEventListener('change', async function(event) {
+        endMinuteAfterStartMinute();
+        await changeTimeEventListener(); 
+    });
+
+    document.getElementById('endMinuteSelect').addEventListener('change', async function(event) {
+        startMinuteBeforeEndMinute();
+        await changeTimeEventListener();  
+    });
+
+    document.getElementById('inDepthLimit').addEventListener('change', changeInDepthEventListener);
+    document.getElementById('outDepthLimit').addEventListener('change', changeOutDepthEventListener);
+    document.getElementById('serviceSelector').addEventListener('change', changeServiceSelectorEventListener);
+    document.addEventListener('DOMContentLoaded', (event) => {
+    ['status100', 'status200', 'status300', 'status400', 'status500'].forEach(function(id) {
+        var checkbox = document.getElementById(id);
+        checkbox.addEventListener('change', function() {
+            onStatusCodeCheckboxChange(id);
+        });
+    });
+});
+</script>
+</body>
+</html>

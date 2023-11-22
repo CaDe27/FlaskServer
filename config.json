@@ -1,0 +1,8 @@
+{
+    "database": {
+        "database": "servicesHttpRequests",
+        "host": "localhost",
+        "user": "user",
+        "password": "userP@ssw0rd"
+    }
+}
