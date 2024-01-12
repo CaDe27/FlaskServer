@@ -2,3 +2,5 @@ mysql -u root -p -e "USE servicesHttpRequests; SHOW TABLES;"
 mysql -u "user" -p -e "SHOW DATABASES;"
 mysql -u "root" -p -e "USE servicesHttpRequests; SELECT * from http_requests LIMIT 10;"
 mysql -u "user" -p -D servicesHttpRequests < dummyRequestsInsertion.sql
+
+mysql -u "root" -p -e "USE servicesHttpRequests; DROP Table;"

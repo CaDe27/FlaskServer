@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, session, g
+from flask import Flask, render_template, request, jsonify, session, g, current_app
 from flask_session import Session
 from flask_caching import Cache
 from datetime import datetime, timedelta
@@ -8,8 +8,11 @@ import logging
 from GraphProcessor import GraphProcessor
 from DatabaseHandler import DatabaseHandler
 
-user_configurations = ['end_datetime', 'start_datetime', 'selected_service_id', 'in_depth_limit', 'out_depth_limit', 'included_status_codes', 'graph']
-visual_configurations = ['selected_service_id', 'in_depth_limit', 'out_depth_limit', 'included_status_codes']
+user_configurations = ['end_datetime', 'start_datetime', 'selected_service_id',
+                        'in_depth_limit', 'out_depth_limit', 'included_status_codes',
+                          'merge_status_codes', 'show_complete_graph', 'filtered_out_nodes', 'graph']
+visual_configurations = ['selected_service_id', 'in_depth_limit', 'out_depth_limit',
+                          'included_status_codes', 'merge_status_codes', 'show_complete_graph', 'filtered_out_nodes']
 #=============== FLASK SETUP 
 server = Flask(__name__)
 
@@ -28,7 +31,7 @@ logger.addHandler(file_handler)
 #END=============== LOGGING
 
 #=============== FLASK SETUP 
-with server.open_resource('../config.json') as config_file:
+with server.open_resource('../Database/config.json') as config_file:
     config = json.load(config_file)
 server.config['SESSION_TYPE'] = 'filesystem'
 server.config['SECRET_KEY'] = os.urandom(24)
@@ -39,23 +42,26 @@ cache = Cache(server, config={'CACHE_TYPE': 'simple'})
 #END=============== FLASK SETUP 
 
 #=============== Cache things
-# caching min date for 24 hours
-@cache.memoize(timeout=86400)
+def get_seconds_until_midnight():
+    now = datetime.now()
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+    return (midnight - now).seconds
+
+def unique_cache_key(*args, **kwargs):
+    """Generates a unique cache key for a function."""
+    return current_app.name + request.path + request.method + str(hash(frozenset(request.args.items())))
+
+@cache.cached(timeout=get_seconds_until_midnight(), key_prefix='get_min_datetime')
 def get_min_datetime():
     return g.db_handler.get_min_datetime()
 
-def get_seconds_until_midnight():
-    now = datetime.now()
-    midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
-    return (midnight - now).seconds
-
 # caching max date for the rest of the day
-@cache.memoize(timeout=get_seconds_until_midnight())
+@cache.cached(timeout=get_seconds_until_midnight(), key_prefix='get_max_datetime')
 def get_max_datetime():
     return g.db_handler.get_max_datetime()
 
 # caching services names for 1 hour
-@cache.cached(timeout=3600)  
+@cache.cached(timeout=3600, key_prefix='get_service_dictionary')  
 def get_service_dictionary():
     return g.db_handler.get_services()
  
@@ -87,10 +93,16 @@ def get_default_value(user_config):
         return 2
     elif user_config == 'included_status_codes':
         return {200}
+    elif user_config == 'merge_status_codes':
+        return False
     elif user_config == 'graph':
         return GraphProcessor()
+    elif user_config == 'show_complete_graph':
+        return False
+    elif user_config == 'filtered_out_nodes':
+        return set()
     else:
-        raise(NameError())
+        raise(NameError(user_config))
 
 @server.before_request
 def load_default_user_config():
@@ -101,7 +113,6 @@ def load_default_user_config():
             modification = True
     if modification:
         session.modified = True
-        
 # END =============== Session things
 
 #=============== Update things
@@ -131,7 +142,6 @@ def get_graph_new_in_depth_limit():
 
     visual_dict = {attr:session[attr] for attr in visual_configurations}
     elements = session['graph'].ToCytoscapeList(get_service_dictionary(), **visual_dict)
-
     return jsonify({"elements": elements, "style":[{"selector":'edge', "style":{'label':'data(label)'}}]})
 
 @server.route('/get_graph_new_out_depth_limit', methods=['POST'])
@@ -156,6 +166,32 @@ def get_graph_new_selected_service():
 
     return jsonify({"elements": elements, "style":[{"selector":'edge', "style":{'label':'data(label)'}}]})
 
+@server.route('/update_complete_graph_checkbox', methods=['POST'])
+def update_complete_graph_checkbox():
+    data = request.json
+    show_complete_graph = data.get('showCompleteGraph') == 'True'
+    session['show_complete_graph'] = show_complete_graph
+    visual_dict = {attr:session[attr] for attr in visual_configurations}
+    elements = session['graph'].ToCytoscapeList(get_service_dictionary(), **visual_dict)
+
+    return jsonify({"elements": elements, "style":[{"selector":'edge', "style":{'label':'data(label)'}}]})
+
+@server.route('/updated_eliminated_services', methods=['POST'])
+def updated_eliminated_services():
+    data = request.json
+    eliminated_services = data.get('eliminatedServices')
+    ids = get_service_inverted_dictionary()
+    eliminated_services_ids = set([ids[service_name] for service_name in eliminated_services])
+    
+    session['filtered_out_nodes'] = eliminated_services_ids
+    session.modified = True
+
+    visual_dict = {attr:session[attr] for attr in visual_configurations}
+    elements = session['graph'].ToCytoscapeList(get_service_dictionary(), **visual_dict)
+
+    return jsonify({"elements": elements, "style":[{"selector":'edge', "style":{'label':'data(label)'}}]})
+
+
 @server.route('/get_graph_update_status_code', methods=['POST'])
 def get_graph_update_status_code():
     data = request.json
@@ -169,17 +205,34 @@ def get_graph_update_status_code():
     session.modified = True
 
     visual_dict = {attr:session[attr] for attr in visual_configurations}
-    print(visual_dict)
     elements = session['graph'].ToCytoscapeList(get_service_dictionary(), **visual_dict)
 
     return jsonify({"elements": elements, "style":[{"selector":'edge', "style":{'label':'data(label)'}}]})
+
+@server.route('/get_graph_update_merge_status_codes_checkbox', methods=['POST'])
+def get_graph_update_merge_status_codes_checkbox():
+    data = request.json
+    merge_status_codes = data.get('isChecked')
+    session['merge_status_codes'] = merge_status_codes
+    session.modified = True
+
+    visual_dict = {attr:session[attr] for attr in visual_configurations}
+    elements = session['graph'].ToCytoscapeList(get_service_dictionary(), **visual_dict)
+    return jsonify({"elements": elements, "style":[{"selector":'edge', "style":{'label':'data(label)'}}]})
+
+@server.route('/run_algorithm', methods=['POST'])
+def run_algorithm():
+    data = request.json
+    selected_algorithm = data.get('algorithm')
+    visual_dict = {attr:session[attr] for attr in visual_configurations}
+    results = session['graph'].run_algorithm(selected_algorithm, get_service_dictionary(), **visual_dict)
+    return jsonify({"results": f'{results}'})
 
 # END =============== Update things
 @server.route('/')
 def index():
     serviceNames=tuple(get_service_dictionary().values())
     load_default_user_config()
-    
     return render_template('index.html', 
                            min_date=get_min_datetime().date(), 
                            max_date=get_max_datetime().date(), 
@@ -189,7 +242,8 @@ def index():
                            selected_service = get_service_dictionary()[session['selected_service_id']],
                            in_depth_limit= session['in_depth_limit'],
                            out_depth_limit= session['out_depth_limit'],
-                           included_status_codes = {200}
+                           included_status_codes = session['included_status_codes'],
+                           merge_status_codes = session['merge_status_codes']
                            )
 if __name__ == '__main__':
     server.run(debug=True)

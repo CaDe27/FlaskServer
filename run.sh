@@ -13,5 +13,8 @@ if [ -n "$PID" ]; then
     echo "Killed Python processes with PIDs $PID on port 5000."
 fi
 
+rm -rf ./app/__pycache__
+rm -rf ./flask_session
+
 # we run the app
 python app/app.py

@@ -13,6 +13,9 @@
     <!-- <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script> -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
 
+    <!-- importes multisearchable dropdown -->
+    <script src="{{ url_for('static', filename='multiselect-dropdown.js') }}" ></script>
+
     <!-- my own style -->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 
@@ -20,6 +23,9 @@
     <script src="{{ url_for('static', filename='initConfig.js') }}"></script>
     <script src="{{ url_for('static', filename='cytoscapeConfig.js') }}"></script> 
     <script src="{{ url_for('static', filename='updateFuncs.js') }}"></script> 
+    <style>
+        select {width: 13em;}
+    </style>
 </head>
 <body>
 
@@ -27,6 +33,9 @@
     <div class="row">
         <!-- Left Menu -->
         <div class="col-lg-3 col-4 custom-style">
+            <div class="row">
+                <h5>Date configuration</h6>
+            </div>
             <div class="row">
                 <!-- start date picker -->
                 <div class="input-group">
@@ -58,28 +67,83 @@
                     </select>
                 </div>
             </div>
+
+            <div class="row">
+                <label><input type="checkbox" id="continousUpdate">Update every minute</label>
+            </div>
             
-            <div class="input-group">
-                <label for="serviceSelector">Service:</label>
-                <select class="custom-select" id="serviceSelector">
-                    <option selected>{{ selected_service }}</option>
+            <div class="row">
+                <h5>Service configuration</h6>
+            </div>
+            <div class="row">
+                <div class="input-group">
+                    <label for="serviceSelector">Service:</label>
+                    <select class="custom-select" id="serviceSelector">
+                        <option selected>{{ selected_service }}</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="completeGraphCheckbox">
+                    <label class="form-check-label" for="completeGraphCheckbox">Show complete graph</label>
+                </div>
+            </div>
+            <div class="row">
+                <label class="form-check-label" for="eliminatedServices">Filter out</label>
+                <select name="eliminatedServices" id="eliminatedServices" multiple multiselect-max-items="3" multiselect-hide-x="true">
                 </select>
             </div>
-
+            
+            <div class="row">
+                <h5>Edge configuration</h6>
+            </div>
             <div class="row">
                 <div class="input-group">
-                    <label for="inDepthLimit">Incoming depth limit:</label>
-                    <input id="inDepthLimit" class="form-control" type="number" min="0" step="1" value="{{ in_depth_limit }}"/>
-                </div>
-            </div> 
-
-            <div class="row">
-                <div class="input-group">
-                    <label for="outDepthLimit">Outcoming depth limit:</label>
-                    <input id="outDepthLimit" class="form-control" type="number" min="0" step="1" value="{{ out_depth_limit }}"/>
+                    <label for="aggregationOperator">Aggregation type:</label>
+                    <select class="custom-select" id="aggregationOperator">
+                        <option selected>sum latency</option>
+                        <option>max latency</option>
+                        <option>min latency</option>
+                        <option>count</option>
+                    </select>
                 </div>
             </div>
-            
+            <div class="depth-limit-container">
+                <div class="row">
+                    <h6>Depth Limits</h6>
+                </div>
+                <div class="row">
+                    <div class="input-group">
+                        <label for="inDepthLimit">Incoming:</label>
+                        <input id="inDepthLimit" class="form-control" type="number" min="0" step="1" value="{{ in_depth_limit }}"/>
+                        <label for="outDepthLimit">Outgoing:</label>
+                        <input id="outDepthLimit" class="form-control" type="number" min="0" step="1" value="{{ out_depth_limit }}"/>
+                    </div>
+                </div> 
+            </div>
+
+            <div class="edge-threshold-container">
+                <div class="row">
+                    <h6>Edge thresholds</h6>
+                </div>
+                
+                <div class="row">
+                    <div class="input-group">
+                        <label for="lowerThreshold">Lower:</label>
+                        <input id="lowerThreshold" class="form-control" type="number" min="0" step="1" value="0"/>
+                        <label for="upperThreshold">Upper:</label>
+                        <input id="upperThreshold" class="form-control" type="number" min="0" step="1" value=""/>    
+                    </div>
+                </div> 
+                <div class="row">
+                    <label><input type="checkbox" id="noLimitCheckbox" checked> No upper limit</label>
+                </div>
+            </div>
+
+            <div class="row">
+                <h5>Status codes configuration</h6>
+            </div>
             <div class="row">
                 <label>Included status codes:</label>
             </div>
@@ -107,11 +171,41 @@
                     </div>
                 </div>
             </div>
+            <div class="row">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="mergeStatusCodesCheckbox" {% if merge_status_codes %} checked {% endif %}>
+                    <label class="form-check-label" for="mergeStatusCodesCheckbox">Merge status codes</label>
+                </div>
+            </div>
         </div>
-        
+    
         <!-- Graph Display Area -->
         <div class="col-8">
-            <div id="cy" style="width: 100%; height: 400px;"></div>
+            <div class="row">
+                <div id="cy" style="width: 100%; height: 400px;"></div>
+            </div>
+            <div class="row">
+                <h5>Algorithm runner</h6>
+            </div>
+            <div class="row custom-style">
+                <div class="input-group">
+                    <label for="algorithmSelector">Algorithm:</label>
+                    <select class="custom-select" id="algorithmSelector">
+                        <option>Strongly Connected Components</option>
+                    </select>
+                    <button for="algorithmSelector" id="runAlgorithmButton" class="btn btn-primary" type="submit">Run algorithm</button>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 id="algorithmTitle" class="card-title">Algorithm results</h5>
+                            <pre id="algorithmResults" class="card-text"></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -127,7 +221,8 @@
 
     const serviceNameList = {{ serviceNames | tojson }};
     fillServiceSelectorOptions(document.getElementById('serviceSelector'), serviceNameList);
-
+    fillServiceSelectorOptions(document.getElementById('eliminatedServices'), serviceNameList);
+    
     // Initialize visualization
     window.onload = async function() {
         cy = cytoscape({container: document.getElementById('cy')});
@@ -140,38 +235,55 @@
 <!-- add listeners -->
 <script>
     document.getElementById('startDate').addEventListener('change', async function(event) {
-        endDateAfterStartDate();
-        await changeTimeEventListener();  
+        await endDateAfterStartDate();
+        changeTimeEventListener();  
     });
     
     document.getElementById('endDate').addEventListener('change', async function(event) {
-        startDateBeforeEndDate();
-        await changeTimeEventListener();  
+        await startDateBeforeEndDate();
+        changeTimeEventListener();  
     });
 
     document.getElementById('startHourSelect').addEventListener('change', async function(event) {
-        endHourAfterStartHour();
-        await changeTimeEventListener(); 
+        await endHourAfterStartHour();
+        changeTimeEventListener(); 
     });
 
     document.getElementById('endHourSelect').addEventListener('change', async function(event) {
-        startHourBeforeEndHour();
-        await changeTimeEventListener();  
+        await startHourBeforeEndHour();
+        changeTimeEventListener();  
     });
 
     document.getElementById('startMinuteSelect').addEventListener('change', async function(event) {
-        endMinuteAfterStartMinute();
-        await changeTimeEventListener(); 
+        await endMinuteAfterStartMinute();
+        changeTimeEventListener(); 
     });
 
     document.getElementById('endMinuteSelect').addEventListener('change', async function(event) {
-        startMinuteBeforeEndMinute();
-        await changeTimeEventListener();  
+        await startMinuteBeforeEndMinute();
+        changeTimeEventListener();  
     });
 
+    let intervalId = null;
+    document.getElementById('continousUpdate').addEventListener('change', function() {
+        if (this.checked) {
+            // Start the interval to check every 5 seconds
+            intervalId = setInterval(updateTimeIfNewMinute, 5000);
+        } else {
+            // Stop the interval
+            clearInterval(intervalId);
+        }
+    });
+
+    document.getElementById('completeGraphCheckbox').addEventListener('change', completeGraphCheckboxEventListener);
+    
+    document.getElementById('eliminatedServices').addEventListener('change', filteredServicesEventListener);
     document.getElementById('inDepthLimit').addEventListener('change', changeInDepthEventListener);
+    
     document.getElementById('outDepthLimit').addEventListener('change', changeOutDepthEventListener);
+    
     document.getElementById('serviceSelector').addEventListener('change', changeServiceSelectorEventListener);
+    
     document.addEventListener('DOMContentLoaded', (event) => {
     ['status100', 'status200', 'status300', 'status400', 'status500'].forEach(function(id) {
         var checkbox = document.getElementById(id);
@@ -179,6 +291,9 @@
             onStatusCodeCheckboxChange(id);
         });
     });
+
+    document.getElementById('mergeStatusCodesCheckbox').addEventListener('change', onMergeCheckboxChange);
+    document.getElementById('runAlgorithmButton').addEventListener('click', runAlgorithmEventListener);
 });
 </script>
 </body>

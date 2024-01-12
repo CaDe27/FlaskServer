@@ -1,68 +1,89 @@
-function endDateAfterStartDate() {
+async function endDateAfterStartDate() {
     // Set the minimum value (min attribute) of the endDate to the selected start date
-    startDateValue = document.getElementById('startDate').value;
-    endDateElem = document.getElementById('endDate');
+    const startDateValue = document.getElementById('startDate').value;
+    let endDateElem = document.getElementById('endDate');
+
     if(endDateElem.value < startDateValue){
         endDateElem.value = startDateValue;
     }
+    // we only check for equality because it was smaller, the value is still
+    // now equal because of the previous if
+    if(endDateElem.value == startDateValue){
+        await endHourAfterStartHour();
+        await endMinuteAfterStartMinute();
+    }
 }
 
-function startDateBeforeEndDate() {
+async function startDateBeforeEndDate() {
     // Set the minimum value (min attribute) of the endDate to the selected start date
-    startDateElem = document.getElementById('startDate');
-    endDateValue= document.getElementById('endDate').value;
-    if(startDateElem.value > endDateValue){
+    let startDateElem = document.getElementById('startDate');
+    const endDateValue = document.getElementById('endDate').value;
+    if(startDateElem.value >= endDateValue){
         startDateElem.value = endDateValue;
+        await startHourBeforeEndHour();
+        await startMinuteBeforeEndMinute();
     }
 }
 
-function startHourBeforeEndHour() {
-    startDateValue = document.getElementById('startDate').value;
-    endDateValue= document.getElementById('endDate').value;
+async function startHourBeforeEndHour() {
+    const startDateValue = document.getElementById('startDate').value;
+    const endDateValue = document.getElementById('endDate').value;
     if(startDateValue != endDateValue)
         return;
 
-    startHourElem = document.getElementById('startHourSelect');
-    endHourValue= document.getElementById('endHourSelect').value;
-    if(startHourElem.value > endHourValue){
-         startHourElem.value = endHourValue;
+    let startHourElem = document.getElementById('startHourSelect');
+    const endHourValue = document.getElementById('endHourSelect').value;
+    if(startHourElem.value >= endHourValue){
+        startHourElem.value = endHourValue;
+        await startMinuteBeforeEndMinute();
     }
 }
 
-function endHourAfterStartHour() {
-    startDateValue = document.getElementById('startDate').value;
-    endDateValue= document.getElementById('endDate').value;
+async function endHourAfterStartHour() {
+    const startDateValue = document.getElementById('startDate').value;
+    const endDateValue = document.getElementById('endDate').value;
     if(startDateValue != endDateValue)
         return;
 
-    endHourElem = document.getElementById('endHourSelect');
-    startHourValue= document.getElementById('startHourSelect').value;
-    if(endHourElem.value < startHourValue){
+    let endHourElem = document.getElementById('endHourSelect');
+    const startHourValue = document.getElementById('startHourSelect').value;
+    if(endHourElem.value <= startHourValue){
          endHourElem.value = startHourValue;
+         await endMinuteAfterStartMinute();
     }
 }
 
-function startMinuteBeforeEndMinute() {
-    startDateValue = document.getElementById('startDate').value;
-    endDateValue= document.getElementById('endDate').value;
+async function startMinuteBeforeEndMinute() {
+    const startDateValue = document.getElementById('startDate').value;
+    const endDateValue = document.getElementById('endDate').value;
     if(startDateValue != endDateValue)
         return;
 
-    startMinuteElem = document.getElementById('startMinuteSelect');
-    endMinuteValue= document.getElementById('endMinuteSelect').value;
+    const endHourValue = document.getElementById('endHourSelect').value;
+    const startHourValue = document.getElementById('startHourSelect').value;
+    if(endHourValue != startHourValue)
+        return;
+
+    let startMinuteElem = document.getElementById('startMinuteSelect');
+    const endMinuteValue = document.getElementById('endMinuteSelect').value;
     if(startMinuteElem.value > endMinuteValue){
          startMinuteElem.value = endMinuteValue;
     }
 }
 
-function endMinuteAfterStartMinute() {
-    startDateValue = document.getElementById('startDate').value;
-    endDateValue= document.getElementById('endDate').value;
+async function endMinuteAfterStartMinute() {
+    const startDateValue = document.getElementById('startDate').value;
+    const endDateValue= document.getElementById('endDate').value;
     if(startDateValue != endDateValue)
         return;
 
-    endMinuteElem = document.getElementById('endMinuteSelect');
-    startMinuteValue= document.getElementById('startMinuteSelect').value;
+    const endHourValue = document.getElementById('endHourSelect').value;
+    const startHourValue = document.getElementById('startHourSelect').value;
+    if(endHourValue != startHourValue)
+        return;
+
+    let endMinuteElem = document.getElementById('endMinuteSelect');
+    const startMinuteValue = document.getElementById('startMinuteSelect').value;
     if(endMinuteElem.value < startMinuteValue){
          endMinuteElem.value = startMinuteValue;
     }
@@ -70,16 +91,16 @@ function endMinuteAfterStartMinute() {
 
 async function changeTimeEventListener(){
     const padWithZero = (value) => String(value).padStart(2, '0');
-    var startDate = document.getElementById('startDate').value;
-    var startHour = padWithZero(document.getElementById('startHourSelect').value);
-    var startMinute = padWithZero(document.getElementById('startMinuteSelect').value);
+    const startDate = document.getElementById('startDate').value;
+    const startHour = padWithZero(document.getElementById('startHourSelect').value);
+    const startMinute = padWithZero(document.getElementById('startMinuteSelect').value);
 
-    var endDate = document.getElementById('endDate').value;
-    var endHour = padWithZero(document.getElementById('endHourSelect').value);
-    var endMinute = padWithZero(document.getElementById('endMinuteSelect').value);
+    const endDate = document.getElementById('endDate').value;
+    const endHour = padWithZero(document.getElementById('endHourSelect').value);
+    const endMinute = padWithZero(document.getElementById('endMinuteSelect').value);
 
-    var startTime = startDate + 'T' + startHour + ':' + startMinute + ':00';
-    var endTime = endDate + 'T' + endHour + ':' + endMinute + ':59';
+    const startTime = startDate + 'T' + startHour + ':' + startMinute + ':00';
+    const endTime = endDate + 'T' + endHour + ':' + endMinute + ':59';
 
     return fetch('/get_graph_new_datetime', {
         method: 'POST',
@@ -92,13 +113,49 @@ async function changeTimeEventListener(){
     .then(response => response.json())
     .then(data => {
         cy.elements().remove();
-        cy.add(data.elements);  // update cytoscape with new elements
+        cy.add(data.elements);  // update main visualization with new elements
         runBreadthFirstLayout();
     });
 }
 
+function augmentOneMinute(dateElem, hourElem, minuteElem) {
+    // Get the current date, hour, and minute from the elements
+    const [year, month, day] = dateElem.value.split('-').map(Number);
+    const currentHour = parseInt(hourElem.value, 10);
+    const currentMinute = parseInt(minuteElem.value, 10);
+    const currentDate = new Date(year, month - 1, day, currentHour, currentMinute);
+    // Add one minute
+    currentDate.setMinutes(currentDate.getMinutes() + 1);
+    // Update the elements with the new values
+    const newHour = currentDate.getHours();
+    const newMinute = currentDate.getMinutes();
+    
+    // when you use toISOString(), it changes to utc time. We are on UTC-6,
+    // so to show the local date we substract the hours UTC is going to add
+    const offsetDate = new Date(currentDate.getTime() - (6 * 60 * 60 * 1000))
+    dateElem.value = offsetDate.toISOString().split('T')[0];
+    hourElem.value = newHour.toString().padStart(2, '0');
+    minuteElem.value = newMinute.toString().padStart(2, '0');
+}
+
+function updateTimeIfNewMinute() {
+    const currentMinute = new Date().getMinutes();
+    let lastRequestMinute = parseInt(document.getElementById('endMinuteSelect').value, 10);
+    if (currentMinute !== lastRequestMinute) {
+        augmentOneMinute(document.getElementById('startDate'),
+                         document.getElementById('startHourSelect'),
+                         document.getElementById('startMinuteSelect')
+                        );
+        augmentOneMinute(document.getElementById('endDate'),
+                        document.getElementById('endHourSelect'),
+                        document.getElementById('endMinuteSelect')
+                       );
+        changeTimeEventListener();
+    }
+}
+
 async function changeInDepthEventListener(){
-    new_depth_limit = document.getElementById('inDepthLimit').value;
+    const new_depth_limit = document.getElementById('inDepthLimit').value;
     return fetch('/get_graph_new_in_depth_limit', {
         method: 'POST',
         headers: {
@@ -110,13 +167,13 @@ async function changeInDepthEventListener(){
     .then(response => response.json())
     .then(data => {
         cy.elements().remove();
-        cy.add(data.elements);  // update cytoscape with new elements
+        cy.add(data.elements);  // update main visualization with new elements
         runBreadthFirstLayout();
     });
 }
 
 async function changeOutDepthEventListener(){
-    new_depth_limit = document.getElementById('outDepthLimit').value;
+    const new_depth_limit = document.getElementById('outDepthLimit').value;
     return fetch('/get_graph_new_out_depth_limit', {
         method: 'POST',
         headers: {
@@ -128,13 +185,13 @@ async function changeOutDepthEventListener(){
     .then(response => response.json())
     .then(data => {
         cy.elements().remove();
-        cy.add(data.elements);  // update cytoscape with new elements
+        cy.add(data.elements);  // update main visualization with new elements
         runBreadthFirstLayout();
     });
 }
 
 async function changeServiceSelectorEventListener(){
-    newService = document.getElementById('serviceSelector').value;
+    const newService = document.getElementById('serviceSelector').value;
     return fetch('/get_graph_new_selected_service', {
         method: 'POST',
         headers: {
@@ -146,19 +203,66 @@ async function changeServiceSelectorEventListener(){
     .then(response => response.json())
     .then(data => {
         cy.elements().remove();
-        cy.add(data.elements);  // update cytoscape with new elements
+        cy.add(data.elements);  // update main visualization with new elements
+        runBreadthFirstLayout();
+    });
+}
+
+async function completeGraphCheckboxEventListener(){
+    const checkbox = document.getElementById('completeGraphCheckbox');
+    const showCompleteGraph = checkbox.checked? "True" : "False";
+    
+    return fetch('/update_complete_graph_checkbox', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        // send data as JSON
+        body: JSON.stringify({showCompleteGraph}) 
+    })
+    .then(response => response.json())
+    .then(data => {
+        cy.elements().remove();
+        cy.add(data.elements);  // update main visualization with new elements
+        runBreadthFirstLayout();
+    });
+}
+
+function getEliminatedServices(){
+    const eliminatedServicesSelect = document.getElementById('eliminatedServices');
+    const options = eliminatedServicesSelect.querySelectorAll('option');
+    const selectedValues = Array.from(options)
+                                .filter(option => option.selected)
+                                .map(option => option.value);
+
+    return selectedValues;
+}
+
+async function filteredServicesEventListener(){
+    const eliminatedServices = getEliminatedServices();
+    return fetch('/updated_eliminated_services', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({eliminatedServices}) 
+    })
+    .then(response => response.json())
+    .then(data => {
+        cy.elements().remove();
+        cy.add(data.elements);  // update main visualization with new elements
         runBreadthFirstLayout();
     });
 }
 
 function getCheckboxLabelValue(checkboxId) {
-    var checkbox = document.getElementById(checkboxId);
-    labelValue = null;
+    const checkbox = document.getElementById(checkboxId);
+    let labelValue = null;
     if (checkbox) {
         // Get the next sibling element, which is the label in this case
-        var label = checkbox.nextElementSibling;
+        let label = checkbox.nextElementSibling;
         if (label) {
-            labelValue= label.innerText || label.textContent;
+            labelValue = label.innerText || label.textContent;
         } else {
             console.error("Label not found for checkbox with ID: " + checkboxId);
         }
@@ -169,10 +273,9 @@ function getCheckboxLabelValue(checkboxId) {
 }
 
 function onStatusCodeCheckboxChange(checkboxId) {
-    var checkbox = document.getElementById(checkboxId);
-    isChecked = checkbox.checked;
-    statusCode =  getCheckboxLabelValue(checkboxId);
-    console.log('statusCode', statusCode)
+    const checkbox = document.getElementById(checkboxId);
+    const isChecked = checkbox.checked;
+    const statusCode =  getCheckboxLabelValue(checkboxId);
     return fetch('/get_graph_update_status_code', {
         method: 'POST',
         headers: {
@@ -184,8 +287,48 @@ function onStatusCodeCheckboxChange(checkboxId) {
     .then(response => response.json())
     .then(data => {
         cy.elements().remove();
-        cy.add(data.elements);  // update cytoscape with new elements
+        cy.add(data.elements);  // update main visualization with new elements
         runBreadthFirstLayout();
     });
     
 }
+
+function onMergeCheckboxChange() {
+    const checkbox = document.getElementById('mergeStatusCodesCheckbox');
+    const isChecked = checkbox.checked;
+    return fetch('/get_graph_update_merge_status_codes_checkbox', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        // send data as JSON
+        body: JSON.stringify({isChecked}) 
+    })
+    .then(response => response.json())
+    .then(data => {
+        cy.elements().remove();
+        cy.add(data.elements);  // update main visualization with new elements
+        runBreadthFirstLayout();
+    });
+}
+
+async function runAlgorithmEventListener() {
+    const selectedAlgorithm = document.getElementById('algorithmSelector').value;
+    document.getElementById("algorithmTitle").textContent = selectedAlgorithm + " results"
+    const response = await fetch('/run_algorithm', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ algorithm: selectedAlgorithm }) 
+    })
+    .then(response => response.json())
+    .then(
+        data =>{
+            algorithmResults = document.getElementById('algorithmResults');
+            algorithmResults.textContent = data.results;
+            console.log(data.results)
+        }
+    );
+}
+

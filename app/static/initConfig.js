@@ -2,9 +2,9 @@
 function generateOptions(selectElement, start, end, zeroPad = false) {
     for (let i = start; i <= end; i++) {
         const option = document.createElement('option');
-        option.value = i;
-        // Use padStart to add a leading zero for numbers less than 10
-        option.textContent = zeroPad ? String(i).padStart(2, '0') : i; 
+        const optionText = zeroPad ? String(i).padStart(2, '0') : i;
+        option.value = optionText;
+        option.textContent = optionText;
         selectElement.appendChild(option);
     }
 }
