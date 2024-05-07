@@ -10,7 +10,6 @@
     <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 
     <!-- cytoscape -->
-    <!-- <script defer src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script> -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.26.0/cytoscape.min.js"></script>
 
     <!-- importes multisearchable dropdown -->
@@ -69,7 +68,10 @@
             </div>
 
             <div class="row">
-                <label><input type="checkbox" id="continousUpdate">Update every minute</label>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="continuousUpdate" {% if continuous_update %} checked {% endif %}>
+                    <label class="form-check-label" for="continuousUpdate">Update every minute</label>
+                </div>
             </div>
             
             <div class="row">
@@ -85,14 +87,13 @@
             </div>
             <div class="row">
                 <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="completeGraphCheckbox">
+                    <input class="form-check-input" type="checkbox" id="completeGraphCheckbox" {% if show_complete_graph %} checked {% endif %}>
                     <label class="form-check-label" for="completeGraphCheckbox">Show complete graph</label>
                 </div>
             </div>
             <div class="row">
                 <label class="form-check-label" for="eliminatedServices">Filter out</label>
-                <select name="eliminatedServices" id="eliminatedServices" multiple multiselect-max-items="3" multiselect-hide-x="true">
-                </select>
+                <select name="eliminatedServices" id="eliminatedServices" multiple multiselect-max-items="3" multiselect-hide-x="true"></select>
             </div>
             
             <div class="row">
@@ -102,10 +103,10 @@
                 <div class="input-group">
                     <label for="aggregationOperator">Aggregation type:</label>
                     <select class="custom-select" id="aggregationOperator">
-                        <option selected>sum latency</option>
-                        <option>max latency</option>
-                        <option>min latency</option>
-                        <option>count</option>
+                        {% set options = ['sum latency', 'max latency', 'min latency', 'average latency', 'count'] %}
+                        {% for option in options %}
+                            <option {% if aggregation_type == option %} selected {% endif %}>{{ option }}</option>
+                        {% endfor %}
                     </select>
                 </div>
             </div>
@@ -131,13 +132,13 @@
                 <div class="row">
                     <div class="input-group">
                         <label for="lowerThreshold">Lower:</label>
-                        <input id="lowerThreshold" class="form-control" type="number" min="0" step="1" value="0"/>
+                        <input id="lowerThreshold" class="form-control" type="number" min="0" step="1" value="{{ lower_edge_threshold }}"/>
                         <label for="upperThreshold">Upper:</label>
-                        <input id="upperThreshold" class="form-control" type="number" min="0" step="1" value=""/>    
+                        <input id="upperThreshold" class="form-control" type="number" min="0" step="1" value="{{ upper_edge_threshold }}"/>    
                     </div>
                 </div> 
                 <div class="row">
-                    <label><input type="checkbox" id="noLimitCheckbox" checked> No upper limit</label>
+                    <label><input type="checkbox" id="noLimitCheckbox" {% if no_upper_limit_flag %} checked {% endif %}> No upper limit</label>
                 </div>
             </div>
 
@@ -191,7 +192,9 @@
                 <div class="input-group">
                     <label for="algorithmSelector">Algorithm:</label>
                     <select class="custom-select" id="algorithmSelector">
-                        <option>Strongly Connected Components</option>
+                        {% for algorithm in implemented_algorithms %}
+                            <option>{{ algorithm }}</option>
+                        {% endfor %}
                     </select>
                     <button for="algorithmSelector" id="runAlgorithmButton" class="btn btn-primary" type="submit">Run algorithm</button>
                 </div>
@@ -223,6 +226,12 @@
     fillServiceSelectorOptions(document.getElementById('serviceSelector'), serviceNameList);
     fillServiceSelectorOptions(document.getElementById('eliminatedServices'), serviceNameList);
     
+    let eliminatedServicesElement = document.getElementById('eliminatedServices');
+    const filtered_services_indexes = {{ filtered_out_nodes | tojson}};
+    for (let i = 0; i < filtered_services_indexes.length; i++) {
+        eliminatedServicesElement.options[i].selected = true;
+    }
+
     // Initialize visualization
     window.onload = async function() {
         cy = cytoscape({container: document.getElementById('cy')});
@@ -265,7 +274,7 @@
     });
 
     let intervalId = null;
-    document.getElementById('continousUpdate').addEventListener('change', function() {
+    document.getElementById('continuousUpdate').addEventListener('change', function() {
         if (this.checked) {
             // Start the interval to check every 5 seconds
             intervalId = setInterval(updateTimeIfNewMinute, 5000);
@@ -278,12 +287,21 @@
     document.getElementById('completeGraphCheckbox').addEventListener('change', completeGraphCheckboxEventListener);
     
     document.getElementById('eliminatedServices').addEventListener('change', filteredServicesEventListener);
+
+    document.getElementById('lowerThreshold').addEventListener('change', changeLowerThresholdListener);
+
+    document.getElementById('upperThreshold').addEventListener('change', changeUpperThresholdListener);
+
+    document.getElementById('noLimitCheckbox').addEventListener('change', changeNoThresholdListener);
+
     document.getElementById('inDepthLimit').addEventListener('change', changeInDepthEventListener);
     
     document.getElementById('outDepthLimit').addEventListener('change', changeOutDepthEventListener);
     
     document.getElementById('serviceSelector').addEventListener('change', changeServiceSelectorEventListener);
     
+    document.getElementById('aggregationOperator').addEventListener('change', aggregationSelectorEventListener);
+
     document.addEventListener('DOMContentLoaded', (event) => {
     ['status100', 'status200', 'status300', 'status400', 'status500'].forEach(function(id) {
         var checkbox = document.getElementById(id);

@@ -1,0 +1,16 @@
+{
+    "database": {
+        "database": "servicesHttpRequests",
+        "host": "localhost",
+        "user": "user",
+        "password": "userP@ssw0rd"
+    },
+    "redis": {
+        "container_name": "communications_logger",
+        "host": "localhost",
+        "port": 6379,
+        "password": "redisP@ssw0rd",
+        "version": "7.2.4",
+        "interactionListName": "communications_logs_queue"
+    }
+}

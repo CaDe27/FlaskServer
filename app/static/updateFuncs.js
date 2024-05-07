@@ -138,7 +138,7 @@ function augmentOneMinute(dateElem, hourElem, minuteElem) {
     minuteElem.value = newMinute.toString().padStart(2, '0');
 }
 
-function updateTimeIfNewMinute() {
+async function updateTimeIfNewMinute() {
     const currentMinute = new Date().getMinutes();
     let lastRequestMinute = parseInt(document.getElementById('endMinuteSelect').value, 10);
     if (currentMinute !== lastRequestMinute) {
@@ -150,8 +150,62 @@ function updateTimeIfNewMinute() {
                         document.getElementById('endHourSelect'),
                         document.getElementById('endMinuteSelect')
                        );
-        changeTimeEventListener();
+        await changeTimeEventListener();
     }
+}
+
+async function changeLowerThresholdListener(){
+    const newThreshold = document.getElementById('lowerThreshold').value;
+    return fetch('/get_graph_new_lower_edge_threshold', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        // send data as JSON
+        body: JSON.stringify({newThreshold}) 
+    })
+    .then(response => response.json())
+    .then(data => {
+        cy.elements().remove();
+        cy.add(data.elements);  // update main visualization with new elements
+        runBreadthFirstLayout();
+    });
+}
+
+async function changeUpperThresholdListener(){
+    const newThreshold = document.getElementById('upperThreshold').value;
+    return fetch('/get_graph_new_upper_edge_threshold', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        // send data as JSON
+        body: JSON.stringify({newThreshold}) 
+    })
+    .then(response => response.json())
+    .then(data => {
+        cy.elements().remove();
+        cy.add(data.elements);  // update main visualization with new elements
+        runBreadthFirstLayout();
+    });
+}
+
+async function changeNoThresholdListener(){
+    const noLimit = document.getElementById('noLimitCheckbox').checked;
+    return fetch('/get_graph_change_no_threshold_flag', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        // send data as JSON
+        body: JSON.stringify({noLimit}) 
+    })
+    .then(response => response.json())
+    .then(data => {
+        cy.elements().remove();
+        cy.add(data.elements);  // update main visualization with new elements
+        runBreadthFirstLayout();
+    });
 }
 
 async function changeInDepthEventListener(){
@@ -270,6 +324,23 @@ function getCheckboxLabelValue(checkboxId) {
         console.error("Checkbox not found with ID: " + checkboxId);
     }
     return labelValue;
+}
+
+async function aggregationSelectorEventListener(){
+    const aggretationType = this.value;
+    return fetch('/update_aggregation_type', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({aggretationType}) 
+    })
+    .then(response => response.json())
+    .then(data => {
+        cy.elements().remove();
+        cy.add(data.elements);  // update main visualization with new elements
+        runBreadthFirstLayout();
+    });
 }
 
 function onStatusCodeCheckboxChange(checkboxId) {

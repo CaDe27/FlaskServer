@@ -5,14 +5,19 @@ from datetime import datetime, timedelta
 import json 
 import os
 import logging
-from GraphProcessor import GraphProcessor
-from DatabaseHandler import DatabaseHandler
+import numpy as np
+from app.GraphProcessor import GraphProcessor
+from app.DatabaseHandler import DatabaseHandler
 
 user_configurations = ['end_datetime', 'start_datetime', 'selected_service_id',
-                        'in_depth_limit', 'out_depth_limit', 'included_status_codes',
-                          'merge_status_codes', 'show_complete_graph', 'filtered_out_nodes', 'graph']
+                       'in_depth_limit', 'out_depth_limit', 'included_status_codes',
+                       'merge_status_codes', 'show_complete_graph', 'filtered_out_nodes',
+                       'aggregation_type', 'lower_edge_threshold', 'upper_edge_threshold', 
+                       'no_upper_threshold_flag','graph']
 visual_configurations = ['selected_service_id', 'in_depth_limit', 'out_depth_limit',
-                          'included_status_codes', 'merge_status_codes', 'show_complete_graph', 'filtered_out_nodes']
+                         'included_status_codes', 'merge_status_codes', 'show_complete_graph',
+                         'filtered_out_nodes', 'aggregation_type', 'lower_edge_threshold', 
+                         'upper_edge_threshold', 'no_upper_threshold_flag']
 #=============== FLASK SETUP 
 server = Flask(__name__)
 
@@ -31,7 +36,7 @@ logger.addHandler(file_handler)
 #END=============== LOGGING
 
 #=============== FLASK SETUP 
-with server.open_resource('../Database/config.json') as config_file:
+with server.open_resource('../config.json') as config_file:
     config = json.load(config_file)
 server.config['SESSION_TYPE'] = 'filesystem'
 server.config['SECRET_KEY'] = os.urandom(24)
@@ -55,11 +60,6 @@ def unique_cache_key(*args, **kwargs):
 def get_min_datetime():
     return g.db_handler.get_min_datetime()
 
-# caching max date for the rest of the day
-@cache.cached(timeout=get_seconds_until_midnight(), key_prefix='get_max_datetime')
-def get_max_datetime():
-    return g.db_handler.get_max_datetime()
-
 # caching services names for 1 hour
 @cache.cached(timeout=3600, key_prefix='get_service_dictionary')  
 def get_service_dictionary():
@@ -81,10 +81,9 @@ def load_db_handler():
 
 def get_default_value(user_config):
     if user_config == 'end_datetime':
-        return get_max_datetime()
+        return datetime.now()
     if user_config == 'start_datetime':
-        end_datetime = session['end_datetime'] if 'end_datetime' in session else get_max_datetime()
-        return max(get_min_datetime(), end_datetime - timedelta(minutes=30)) 
+        return max(get_min_datetime(), datetime.now() - timedelta(minutes=30)) 
     elif user_config == 'selected_service_id':
         return list(get_service_dictionary())[0]
     elif user_config == 'in_depth_limit':
@@ -101,6 +100,14 @@ def get_default_value(user_config):
         return False
     elif user_config == 'filtered_out_nodes':
         return set()
+    elif user_config == 'aggregation_type':
+        return 'sum latency'
+    elif user_config == 'lower_edge_threshold': 
+        return 0
+    elif user_config == 'upper_edge_threshold': 
+        return 1000000000000000
+    elif user_config == 'no_upper_threshold_flag':
+        return True
     else:
         raise(NameError(user_config))
 
@@ -123,16 +130,54 @@ def get_graph_new_datetime():
     end_datetime = datetime.fromisoformat(data.get('endTime'))
     session['start_datetime'] = start_datetime
     session['end_datetime'] = end_datetime
+    
 
-    requests = g.db_handler.get_requests_between(start_datetime, end_datetime)
+    requests = g.db_handler.get_requests_between(start_datetime, end_datetime, session['aggregation_type'])
     session['graph'].clear_graphs()
-    session['graph'].includeEdges(requests)
+    session['graph'].includeEdges(requests, session['aggregation_type'])
     session.modified = True
 
     visual_dict = {attr:session[attr] for attr in visual_configurations}
     elements = session['graph'].ToCytoscapeList(get_service_dictionary(), **visual_dict)
 
     return jsonify({"elements": elements, "style":[{"selector":'edge', "style":{'label':'data(label)'}}]})
+
+@server.route('/get_graph_new_lower_edge_threshold', methods=['POST'])
+def get_graph_new_lower_edge_threshold():
+    data = request.json
+    try:
+        new_threshold = int(data.get('newThreshold'))
+    except:
+        new_threshold = 0
+    session['lower_edge_threshold'] = new_threshold
+
+    visual_dict = {attr:session[attr] for attr in visual_configurations}
+    elements = session['graph'].ToCytoscapeList(get_service_dictionary(), **visual_dict)
+    return jsonify({"elements": elements, "style":[{"selector":'edge', "style":{'label':'data(label)'}}]})
+
+@server.route('/get_graph_new_upper_edge_threshold', methods=['POST'])
+def get_graph_new_upper_edge_threshold():
+    data = request.json
+    try:
+        new_threshold = int(data.get('newThreshold'))
+    except:
+        new_threshold = 1000000000000000
+    session['upper_edge_threshold'] = new_threshold
+
+    visual_dict = {attr:session[attr] for attr in visual_configurations}
+    elements = session['graph'].ToCytoscapeList(get_service_dictionary(), **visual_dict)
+    return jsonify({"elements": elements, "style":[{"selector":'edge', "style":{'label':'data(label)'}}]})
+
+@server.route('/get_graph_change_no_threshold_flag', methods=['POST'])
+def get_graph_change_no_threshold_flag():
+    data = request.json
+    noLimit = data.get('noLimit')
+    session['no_upper_threshold_flag'] = noLimit 
+
+    visual_dict = {attr:session[attr] for attr in visual_configurations}
+    elements = session['graph'].ToCytoscapeList(get_service_dictionary(), **visual_dict)
+    return jsonify({"elements": elements, "style":[{"selector":'edge', "style":{'label':'data(label)'}}]})
+
 
 @server.route('/get_graph_new_in_depth_limit', methods=['POST'])
 def get_graph_new_in_depth_limit():
@@ -160,7 +205,6 @@ def get_graph_new_selected_service():
     data = request.json
     new_selected_service = data.get('newService')
     session['selected_service_id'] = get_service_id(new_selected_service)
-
     visual_dict = {attr:session[attr] for attr in visual_configurations}
     elements = session['graph'].ToCytoscapeList(get_service_dictionary(), **visual_dict)
 
@@ -191,6 +235,21 @@ def updated_eliminated_services():
 
     return jsonify({"elements": elements, "style":[{"selector":'edge', "style":{'label':'data(label)'}}]})
 
+@server.route('/update_aggregation_type', methods=['POST'])
+def update_aggregation_type():
+    data = request.json
+    aggregation_type = data.get('aggretationType')
+    session['aggregation_type'] = aggregation_type
+    
+    requests = g.db_handler.get_requests_between(session['start_datetime'], session['end_datetime'], session['aggregation_type'])
+    session['graph'].clear_graphs()
+    session['graph'].includeEdges(requests, session['aggregation_type'])
+    session.modified = True
+
+    visual_dict = {attr:session[attr] for attr in visual_configurations}
+    elements = session['graph'].ToCytoscapeList(get_service_dictionary(), **visual_dict)
+
+    return jsonify({"elements": elements, "style":[{"selector":'edge', "style":{'label':'data(label)'}}]})
 
 @server.route('/get_graph_update_status_code', methods=['POST'])
 def get_graph_update_status_code():
@@ -201,7 +260,8 @@ def get_graph_update_status_code():
     if is_checked:
         session['included_status_codes'].add(status_code)
     else:
-        session['included_status_codes'].remove(status_code)
+        if status_code in session['included_status_codes']:
+            session['included_status_codes'].remove(status_code)
     session.modified = True
 
     visual_dict = {attr:session[attr] for attr in visual_configurations}
@@ -235,15 +295,22 @@ def index():
     load_default_user_config()
     return render_template('index.html', 
                            min_date=get_min_datetime().date(), 
-                           max_date=get_max_datetime().date(), 
-                           start_datetime = session['start_datetime'],
-                           end_datetime = session['end_datetime'],
+                           max_date=datetime.now().date(), 
+                           start_datetime= session['start_datetime'],
+                           end_datetime= session['end_datetime'],
                            serviceNames=serviceNames,
-                           selected_service = get_service_dictionary()[session['selected_service_id']],
+                           selected_service= get_service_dictionary()[session['selected_service_id']],
+                           show_complete_graph= session['show_complete_graph'],
+                           filtered_out_nodes = list(session['filtered_out_nodes']),
+                           aggregation_type= session['aggregation_type'],
                            in_depth_limit= session['in_depth_limit'],
                            out_depth_limit= session['out_depth_limit'],
-                           included_status_codes = session['included_status_codes'],
-                           merge_status_codes = session['merge_status_codes']
+                           lower_edge_threshold=session['lower_edge_threshold'],
+                           upper_edge_threshold=session['upper_edge_threshold'],
+                           no_upper_limit_flag= session['no_upper_threshold_flag'],
+                           included_status_codes= session['included_status_codes'],
+                           merge_status_codes= session['merge_status_codes'],
+                           implemented_algorithms = session['graph'].implemented_algorithms
                            )
 if __name__ == '__main__':
     server.run(debug=True)
